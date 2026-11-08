@@ -74,6 +74,42 @@ def test_archive_dish(session):
     add_dish(session, "Linsencurry")  # the name is free again
 
 
+def draft_dish(name, **kwargs):
+    return DishIn(**{"name": name, "kcal_per_serving": 500, "protein_g_per_serving": 20, **kwargs})
+
+
+def test_drafts_flag_duplicates_and_can_be_discarded(session):
+    curry = add_dish(session, "Linsencurry")
+    archived = add_dish(session, "Chili")
+    services.archive_dish(session, archived.id)
+    drafts = services.add_drafts(session, [draft_dish(" linsencurry "), draft_dish("Chili")], "https://notion.so/x")
+    assert [(d.dish.name, d.duplicate_of, d.source) for d in drafts] == [
+        (" linsencurry ", curry.id, "https://notion.so/x"),
+        ("Chili", None, "https://notion.so/x"),  # archived dishes do not count
+    ]
+    services.add_drafts(session, [draft_dish("Porridge")], "text")
+    assert [d.dish.name for d in services.list_drafts(session)] == [" linsencurry ", "Chili", "Porridge"]
+    services.discard_draft(session, drafts[1].id)
+    assert [d.dish.name for d in services.list_drafts(session)] == [" linsencurry ", "Porridge"]
+    with pytest.raises(ServiceError):
+        services.discard_draft(session, drafts[1].id)
+
+
+def test_save_draft_creates_or_replaces_and_deletes_the_draft(session):
+    curry = add_dish(session, "Linsencurry")
+    new, duplicate = services.add_drafts(session, [draft_dish("Chili"), draft_dish("LINSENCURRY")], "text")
+    saved = services.save_draft(session, new.id, draft_dish("Chili sin Carne", kcal_per_serving=449))
+    assert (saved.name, saved.kcal_per_serving) == ("Chili sin Carne", 450)  # the edited data, rounded
+    with pytest.raises(ServiceError):
+        services.save_draft(session, new.id, new.dish)  # the draft is gone
+    with pytest.raises(ServiceError):
+        services.save_draft(session, duplicate.id, duplicate.dish)  # name taken, no replace
+    replaced = services.save_draft(session, duplicate.id, duplicate.dish, replace=True)
+    assert (replaced.id, replaced.name, replaced.kcal_per_serving) == (curry.id, "LINSENCURRY", 500)
+    assert services.list_drafts(session) == []
+    assert len(services.list_dishes(session)) == 2
+
+
 def test_ratings_and_stats_count_only_final_plans(session):
     curry = add_dish(session, "Linsencurry")
     save_profile(session)

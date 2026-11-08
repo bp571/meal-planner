@@ -39,7 +39,36 @@
       </div>
       <section id="view-week" class="view" role="tabpanel" aria-labelledby="tab-week" tabindex="0"></section>
       <section id="view-shopping" class="view" role="tabpanel" aria-labelledby="tab-shopping" tabindex="0" hidden></section>
-      <section id="view-dishes" class="view" role="tabpanel" aria-labelledby="tab-dishes" tabindex="0" hidden></section>
+      <section id="view-dishes" class="view" role="tabpanel" aria-labelledby="tab-dishes" tabindex="0" hidden>
+        <form id="import" class="import">
+          <header class="view-head"><h2 data-t="import.title"></h2></header>
+          <label for="import-source" class="sr-only" data-t="import.label"></label>
+          <textarea id="import-source" rows="4"></textarea>
+          <div class="import-row">
+            <button type="submit" class="primary" data-t="import.submit"></button>
+            <p class="hint" data-t="import.hint"></p>
+          </div>
+          <div id="import-progress" class="import-progress" hidden>
+            <p id="import-status" class="status" role="status"></p>
+            <div id="import-count" class="import-count" hidden>
+              <div class="bar progress" role="progressbar" aria-valuemin="0"><span></span></div>
+              <span></span>
+            </div>
+          </div>
+          <div id="import-log" class="import-log"></div>
+        </form>
+        <section id="drafts" class="dish-section" hidden>
+          <header class="view-head">
+            <h2 id="drafts-title"></h2>
+            <div class="bulk">
+              <button id="save-all" type="button" data-t="drafts.saveAll"></button>
+              <button id="discard-all" type="button" class="quiet danger" data-t="drafts.discardAll"></button>
+            </div>
+          </header>
+          <ul id="draft-list" class="draft-list"></ul>
+        </section>
+        <div id="view-library" class="dish-section"></div>
+      </section>
       <section id="view-profile" class="view" role="tabpanel" aria-labelledby="tab-profile" tabindex="0" hidden></section>
     </main>
   </div>

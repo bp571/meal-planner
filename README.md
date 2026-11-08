@@ -19,9 +19,11 @@ are deterministic Python, so they can be tested without an API call.
 - **Onboarding in chat:** goal, calorie and protein target, meals to plan, cooking time, meal
   prep, diet and meat limits, allergies and dislikes, fixed items (e.g. a daily protein shake),
   flex meals (e.g. fast food once a week), shopping day, pantry staples.
-- **Dish library:** import from Notion (a page or a whole database) or paste notes and Instagram
-  captions. The agent extracts ingredients and estimates kcal and protein once per dish. You
-  confirm before anything is saved.
+- **Dish import, separate from the chat:** in the "Gerichte" tab, paste a Notion link (a page or a
+  whole database), notes, Instagram captions or ready meals with their package size. Claude
+  extracts each dish in the background, with ingredients and rough kcal and protein. Every dish
+  appears as an editable draft card that you save or discard. The chat can only change existing
+  dishes.
 - **Sunday planning:** the agent asks about last week and the coming week, builds a plan, checks it
   against your profile and adjusts it in chat. One line per day with rough kcal, plus the weekly
   total against your target.
@@ -60,8 +62,8 @@ The model defaults to `sonnet`. Set `MEAL_PLANNER_MODEL` in `.env` to change it.
 2. Share your recipe page or database with the integration.
 3. Put the token into `.env` as `NOTION_TOKEN`.
 
-Never paste the token into the chat. Without a token, paste the recipe text into the chat
-instead.
+Never paste the token into the chat. Without a token, paste the recipe text into the import field
+in the "Gerichte" tab instead.
 
 ## Run
 
@@ -73,7 +75,8 @@ This starts the server on <http://127.0.0.1:8000> and opens the browser. Set `ME
 for another port.
 
 1. The first start runs the onboarding in the chat.
-2. Then add your dishes: paste a Notion link or the text of your notes.
+2. Then add your dishes in the "Gerichte" tab: paste a Notion link or the text of your notes,
+   check the draft cards and save them.
 3. On Sunday, click "Woche planen". When the plan is fine, say so: it becomes final and the
    shopping list appears in the "Einkauf" tab with a copy button.
 
@@ -97,6 +100,7 @@ never as instructions.
 | `src/meal_planner/planning.py` | Calorie and protein totals, plan checks |
 | `src/meal_planner/shopping.py` | Shopping list and text export |
 | `src/meal_planner/notion.py` | Reads Notion pages and databases through the official API |
+| `src/meal_planner/importer.py` | Dish import: Notion or text, extracted by Claude into draft dishes |
 | `src/meal_planner/prompts.py` | System prompt and the context built from profile and memory |
 | `src/meal_planner/tools.py` | SDK tools, thin wrappers around `services.py` |
 | `src/meal_planner/agent.py` | Chat session on top of the Agent SDK, streams events to the UI |
@@ -118,3 +122,9 @@ The tests cover the deterministic core and need neither a login nor a network co
 
 See [PLAN.md](PLAN.md) (German): changing the plan during the week by chat and click, an English
 UI, screenshot import for Instagram recipes, and an iPhone version.
+
+## License
+
+[PolyForm Noncommercial 1.0.0](LICENSE.md). You may use, change and share this code for
+personal and other noncommercial purposes. Commercial use is not permitted without separate
+permission from the author.

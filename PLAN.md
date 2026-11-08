@@ -104,7 +104,7 @@ Im UI lässt sich jeder Eintrag ansehen und löschen.
 | --- | --- |
 | Profil | `get_profile`, `save_profile` |
 | Gedächtnis | `remember`, `forget` |
-| Bibliothek | `list_dishes`, `get_dish`, `save_dish`, `archive_dish`, `read_notion` |
+| Bibliothek | `list_dishes`, `get_dish`, `update_dish`, `archive_dish`, `create_fixed_item_dish` (nur für feste Einträge wie den Proteinshake). Neue Gerichte kommen über den Import-Bereich, nicht über den Chat. |
 | Plan | `save_plan_draft` (prüft, rechnet und speichert als Entwurf), `update_slot`, `finalize_plan`, `get_plan` |
 | Feedback | `rate_dish` |
 | Einkauf | `get_shopping_list` |
@@ -158,16 +158,19 @@ und der Agent am nächsten Sonntag dein Feedback und dein Profil noch kennt.
 - Client des Agent SDK
 - System-Prompt aus Profil und Gedächtnis
 - Tools aus der Tabelle oben
-- Ein Agent mit einem Chat für alle drei Abläufe (Onboarding, Rezepte-Import, Sonntagsplanung).
-  Jeder Ablauf hat einen eigenen Abschnitt mit Anweisungen im System-Prompt.
-- Startpunkt nach Zustand, alle Fähigkeiten in jedem Gespräch:
+- Der Chat ist für Onboarding und Sonntagsplanung da. Jeder Ablauf hat einen eigenen Abschnitt mit
+  Anweisungen im System-Prompt.
+- Neue Gerichte kommen nicht über den Chat, sondern über den Import-Bereich (Schritt 6). Der Chat
+  verweist dorthin und kann bestehende Gerichte nur ändern. Die einzige Ausnahme sind feste
+  Einträge wie der Proteinshake: Die legt der Chat im Onboarding selbst an.
+- Startpunkt nach Zustand:
   - kein Profil: Der Agent führt durch das Onboarding, bis das Profil steht. Das ist der einzige
     echte Modus.
-  - keine Gerichte: Der Agent schlägt vor, die Bibliothek aufzubauen.
+  - keine Gerichte: Der Agent verweist auf den Tab „Gerichte“.
   - sonst: Der Agent schlägt die Wochenplanung vor.
-- Mitten in der Planung lassen sich trotzdem Gerichte hinzufügen oder das Profil ändern.
-- Startknöpfe im UI wie „Woche planen“ oder „Gericht hinzufügen“ schicken nur eine passende erste
-  Nachricht in denselben Chat.
+- Mitten in der Planung lässt sich trotzdem das Profil ändern.
+- Der Startknopf „Woche planen“ schickt nur eine passende erste Nachricht in den Chat. „Gericht
+  hinzufügen“ springt in den Import-Bereich.
 
 ### Schritt 4 – Web-UI
 
@@ -175,7 +178,8 @@ und der Agent am nächsten Sonntag dein Feedback und dein Profil noch kennt.
 - Rechts vier Tabs:
   - **Woche:** Raster aus Tagen und Mahlzeiten, kcal pro Tag, Wochensumme gegen das Ziel
   - **Einkauf:** Liste mit Button „Kopieren“
-  - **Gerichte:** Liste mit kcal und Protein, Löschen
+  - **Gerichte:** Import-Bereich mit Entwurfskarten (Schritt 6), darunter die Liste mit kcal und
+    Protein, Löschen
   - **Profil & Gedächtnis:** Ansicht, Gedächtnis-Einträge löschbar
 - Nach jedem Tool-Aufruf, der Daten ändert, aktualisieren sich die Tabs.
 
@@ -203,14 +207,24 @@ gespeichert.
 
 ### Schritt 6 – Bibliothek aufbauen
 
-- **Notion:** Link zu einer Seite oder einer ganzen Datenbank. Der Agent übernimmt die Zutaten
-  und Mengen.
-- **Text einfügen:** Notizen oder Instagram-Beschreibungen, auch mehrere Gerichte auf einmal. Der
-  Agent zerlegt den Text in einzelne Gerichte.
-- **Fertigprodukte:** Name und Packungsgröße reichen. Packungswerte kannst du angeben, sonst
-  schätzt der Agent.
-- Vor dem Speichern zeigt der Agent jedes Gericht mit Zutaten, Portionen und geschätzten
-  Nährwerten. Du bestätigst oder korrigierst.
+Das Aufbauen der Bibliothek ist vom Chat getrennt und läuft im Import-Bereich im Tab „Gerichte“.
+Du fügst dort ein, was du hast:
+
+- **Notion:** einen Link zu einer Seite oder einer ganzen Datenbank. Die App liest die Seiten direkt
+  über die Notion-API, mit Seitentext und Datenbank-Spalten.
+- **Text:** Notizen oder Instagram-Beschreibungen, auch mehrere Gerichte auf einmal.
+- **Fertigprodukte:** Name und Packungsgröße reichen. Stehen Packungswerte dabei, werden sie
+  übernommen, sonst geschätzt.
+
+Ablauf:
+
+- Claude liest die Gerichte im Hintergrund aus. Große Notion-Datenbanken werden in Paketen
+  verarbeitet, und ein Fortschrittsbalken zeigt den Stand.
+- Jedes Gericht erscheint als Entwurfskarte mit Zutaten, Portionen und geschätzten Nährwerten. Du
+  kannst die Karte bearbeiten, speichern oder verwerfen, einzeln oder alle auf einmal.
+- Entwürfe liegen in der Datenbank und bleiben auch nach einem Neuladen der Seite erhalten.
+- Gibt es ein Gericht schon, bietet die Karte „Ersetzen“ statt „Speichern“ an.
+- In Phase 4 kommt hier auch der Screenshot-Import dazu.
 
 ### Schritt 7 – Sonntagsplanung
 
@@ -241,7 +255,8 @@ gespeichert.
 ### Phase 3 – Veröffentlichen auf GitHub
 
 - UI auf Englisch umschaltbar
-- README mit Screenshots, Lizenz (Vorschlag: MIT)
+- README mit Screenshots
+- Lizenz: PolyForm Noncommercial 1.0.0 (erledigt, private Nutzung frei, gewerbliche nicht)
 - GitHub Actions für die Tests
 
 ### Phase 4 – Bequemer importieren
@@ -266,3 +281,8 @@ gespeichert.
 - Tests und Evaluation für die Tool-Aufrufe des Agenten
 - Echte Produktdaten von Aldi, Rewe oder Lidl sind bewusst ausgeschlossen, weil es keine
   offiziellen APIs gibt. Andockpunkt wären die generischen Zutaten der Einkaufsliste.
+- Ernährungswissen: Der Agent nutzt geprüfte Quellen (z. B. DGE-Empfehlungen, eigene
+  Notizen, Artikel) beim Planen und Beantworten von Fragen, mit Quellenangabe.
+  Heute hat er nur die freie Websuche.
+- Menhrere Einkauflisten pro Woche erlauben
+- ios Erinnerungen 

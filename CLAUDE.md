@@ -23,6 +23,9 @@ Roadmap and product decisions: PLAN.md (German).
 - Profile is stored as JSON (`ProfileRecord`), so new profile fields need no migration. Dishes are
   soft-deleted (`archived`) to keep ratings and past plans intact.
 - The agent gets only its own MCP tools plus WebSearch/WebFetch: no file or shell access.
+- New dishes come only through the import area (`importer.py` → `DishDraft` → the user saves
+  the card). The chat can change existing dishes and create fixed-item dishes (e.g. a protein
+  shake), nothing else.
 
 ## Conventions
 

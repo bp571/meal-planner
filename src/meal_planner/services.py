@@ -16,8 +16,10 @@ from sqlmodel import Session, col, select
 from meal_planner import planning, shopping
 from meal_planner.models import (
     Dish,
+    DishDraft,
     DishIn,
     DishStats,
+    DraftView,
     MemoryEntry,
     PlanView,
     Profile,
@@ -166,6 +168,60 @@ def archive_dish(session: Session, dish_id: int) -> None:
     dish.archived = True
     dish.updated_at = _now()
     session.add(dish)
+    session.flush()
+
+
+# --- Dish drafts (from the import, saved or discarded by the user) ---
+
+
+def _draft_views(session: Session, drafts: list[DishDraft]) -> list[DraftView]:
+    active = {dish.name.casefold(): dish.id for dish in list_dishes(session)}
+    views = []
+    for draft in drafts:
+        dish = DishIn.model_validate(draft.data)
+        duplicate_of = active.get(dish.name.strip().casefold())
+        views.append(DraftView(id=draft.id, dish=dish, source=draft.source, duplicate_of=duplicate_of))
+    return views
+
+
+def list_drafts(session: Session) -> list[DraftView]:
+    """Oldest first."""
+    drafts = session.exec(select(DishDraft).order_by(DishDraft.created_at, DishDraft.id)).all()
+    return _draft_views(session, list(drafts))
+
+
+def add_drafts(session: Session, dishes: list[DishIn], source: str) -> list[DraftView]:
+    drafts = [DishDraft(data=dish.model_dump(mode="json"), source=source) for dish in dishes]
+    session.add_all(drafts)
+    session.flush()
+    return _draft_views(session, drafts)
+
+
+def _get_draft(session: Session, draft_id: int) -> DishDraft:
+    draft = session.get(DishDraft, draft_id)
+    if draft is None:
+        raise ServiceError([f"Draft {draft_id} does not exist."])
+    return draft
+
+
+def save_draft(session: Session, draft_id: int, data: DishIn, replace: bool = False) -> Dish:
+    """Save the (possibly edited) data of a draft as a dish and delete the draft.
+
+    replace=True updates the active dish with the same name instead of creating one. ServiceError
+    if the draft does not exist, or if the name is taken and replace is False.
+    """
+    draft = _get_draft(session, draft_id)
+    name = data.name.strip().casefold()
+    existing = next((d.id for d in list_dishes(session) if d.name.casefold() == name), None)
+    dish = save_dish(session, data, existing if replace else None)
+    session.delete(draft)
+    session.flush()
+    return dish
+
+
+def discard_draft(session: Session, draft_id: int) -> None:
+    """ServiceError if the draft does not exist."""
+    session.delete(_get_draft(session, draft_id))
     session.flush()
 
 

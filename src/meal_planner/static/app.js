@@ -27,6 +27,7 @@ const number = new Intl.NumberFormat(T.locale, { maximumFractionDigits: 2 });
 const oneDecimal = new Intl.NumberFormat(T.locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const kcal = (n) => T.kcal(number.format(Math.round(n / 50) * 50));
 const grams = (n) => number.format(Math.round(n));
+const amountText = (item) => (item.amount == null ? T.shopping.asNeeded : `${number.format(item.amount)} ${item.unit}`.trim());
 
 /** "2026-11-09" as a UTC date, so day arithmetic ignores time zones. */
 const parseDay = (iso) => new Date(`${iso.slice(0, 10)}T00:00:00Z`);
@@ -46,6 +47,7 @@ async function api(path, options = {}) {
   if (!response.ok) {
     const error = new Error(body?.errors ? `${T.errors.prefix} ${body.errors.join(" ")}` : T.errors.generic);
     error.status = response.status;
+    error.detail = body?.detail; // FastAPI validation errors (422)
     throw error;
   }
   return body;
@@ -144,7 +146,7 @@ function setStatus(text) {
 function setBusy(value) {
   busy = value;
   log.setAttribute("aria-busy", String(value));
-  for (const control of document.querySelectorAll(".composer textarea, .composer button, #reset")) {
+  for (const control of document.querySelectorAll('.composer textarea, .composer button:not([data-starter="addDish"]), #reset')) {
     control.disabled = value;
   }
   if (!value) input.focus();
@@ -152,8 +154,8 @@ function setBusy(value) {
 
 const toolLabel = (name) => T.tools[name] ?? T.tools.default;
 
-/** Areas from a "changed" event and the tab that shows each. */
-const AREA_VIEW = { profile: "profile", memory: "profile", dishes: "dishes", plan: "week", shopping: "shopping" };
+/** Areas from a "changed" event and the view that shows each. */
+const AREA_VIEW = { profile: "profile", memory: "profile", dishes: "library", plan: "week", shopping: "shopping" };
 
 async function* readNdjson(response) {
   const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
@@ -369,8 +371,6 @@ async function renderShopping() {
       confirmation.textContent = T.shopping.copyFailed;
     }
   };
-  const amount = (item) =>
-    item.amount == null ? T.shopping.asNeeded : `${number.format(item.amount)} ${item.unit}`.trim();
   return [
     el(
       "header",
@@ -387,7 +387,7 @@ async function renderShopping() {
           "section",
           { class: "department" },
           el("h3", {}, T.departments[department] ?? department),
-          el("ul", {}, items.map((item) => el("li", {}, el("span", { class: "amount" }, amount(item)), el("span", {}, item.name)))),
+          el("ul", {}, items.map((item) => el("li", {}, el("span", { class: "amount" }, amountText(item)), el("span", {}, item.name)))),
         ),
       ),
     ),
@@ -395,7 +395,359 @@ async function renderShopping() {
   ];
 }
 
-// Gerichte
+// Gerichte: import, drafts to check, then the library
+
+const importForm = $("#import");
+const importSource = $("#import-source");
+const importStatus = $("#import-status");
+const importCount = $("#import-count");
+const importLog = $("#import-log");
+
+/** Lock the import form while an import runs and show its progress. */
+function setImporting(on, text) {
+  for (const control of importForm.querySelectorAll("textarea, button")) control.disabled = on;
+  $("#import-progress").hidden = !on;
+  importStatus.textContent = text ?? "";
+  importCount.hidden = true;
+}
+
+function setProgress(done, total) {
+  const bar = importCount.querySelector(".bar");
+  importCount.hidden = !total;
+  bar.setAttribute("aria-valuemax", total);
+  bar.setAttribute("aria-valuenow", done);
+  bar.firstElementChild.style.width = `${total ? (done / total) * 100 : 0}%`;
+  importCount.lastElementChild.textContent = T.import.progress(done, total);
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** An import this page did not start (page reload, other tab): poll until it stops. */
+async function followImport(status) {
+  setImporting(true, T.import.running);
+  try {
+    while (status.running) {
+      setProgress(status.done, status.total);
+      await sleep(2000);
+      status = await api("/api/import/status");
+    }
+  } catch (error) {
+    importLog.append(note("error", error.message));
+  }
+  setImporting(false);
+  refreshDishes(false);
+}
+
+async function runImport(source) {
+  importLog.replaceChildren();
+  setImporting(true, T.import.starting);
+  let count = null;
+  const handlers = {
+    status: ({ text }) => (importStatus.textContent = text),
+    progress: ({ done, total }) => setProgress(done, total),
+    drafts: () => loadDrafts(),
+    error: ({ message }) => importLog.append(note("error", `${T.errors.prefix} ${message}`)),
+    done: (event) => (count = event.count),
+  };
+  try {
+    const response = await fetch("/api/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source }),
+    });
+    if (response.status === 409) return followImport(await api("/api/import/status"));
+    if (!response.ok) throw new Error(T.errors.generic);
+    for await (const event of readNdjson(response)) handlers[event.type]?.(event);
+  } catch (error) {
+    importLog.append(note("error", error.message || T.errors.generic));
+  }
+  setImporting(false);
+  if (count != null) {
+    if (count > 0) importSource.value = ""; // keep the text if nothing came out of it
+    importLog.append(el("p", { class: "import-result", role: "status" }, T.import.result(count)));
+  }
+  refreshDishes(false);
+}
+
+/** After a save, discard or import. Saved dishes can change the week's kcal and the shopping list. */
+function refreshDishes(saved) {
+  loadDrafts();
+  views.library();
+  if (saved) {
+    views.week();
+    views.shopping();
+  }
+}
+
+/** Drafts by id. Each keeps its edited dish and its card node, so a reload keeps edits and focus. */
+const drafts = new Map();
+let draftLoads = 0;
+let bulkRunning = false;
+
+async function loadDrafts() {
+  const mine = ++draftLoads;
+  let list;
+  try {
+    list = await api("/api/drafts");
+  } catch (error) {
+    importLog.append(note("error", error.message));
+    return;
+  }
+  if (mine !== draftLoads) return;
+  const ids = new Set(list.map((draft) => draft.id));
+  for (const state of drafts.values()) if (!ids.has(state.id)) dropDraft(state);
+  for (const draft of list) {
+    const state = drafts.get(draft.id);
+    if (!state) {
+      const fresh = { ...draft, editing: false, error: null, nutritionPicked: false };
+      fresh.node = draftNode(fresh);
+      drafts.set(fresh.id, fresh);
+      $("#draft-list").append(fresh.node);
+    } else if (state.duplicate_of !== draft.duplicate_of) {
+      state.duplicate_of = draft.duplicate_of;
+      renderDraft(state);
+    }
+  }
+  updateDraftsHead();
+}
+
+function updateDraftsHead() {
+  const states = [...drafts.values()];
+  $("#drafts").hidden = !states.length;
+  $("#drafts").inert = bulkRunning;
+  $("#drafts-title").textContent = T.drafts.title(states.length);
+  $("#save-all").disabled = !states.some((state) => state.duplicate_of == null);
+}
+
+function renderDraft(state) {
+  const node = draftNode(state);
+  state.node.replaceWith(node);
+  state.node = node;
+}
+
+function dropDraft(state) {
+  state.node.remove();
+  drafts.delete(state.id);
+  updateDraftsHead();
+}
+
+/** German field names from a FastAPI 422 body, e.g. "kcal pro Portion, Zutat 2 (Name)". */
+function invalidFields(detail = []) {
+  const F = T.drafts.fields;
+  const names = detail.map(({ loc }) => {
+    const [key, index, sub] = loc.slice(loc.indexOf("dish") + 1);
+    return key === "ingredients" && sub ? T.drafts.ingredientField(index + 1, F[sub] ?? sub) : (F[key] ?? key);
+  });
+  return [...new Set(names)].join(", ");
+}
+
+async function saveDraft(state) {
+  state.node.inert = true;
+  try {
+    await api(`/api/drafts/${state.id}/save`, {
+      method: "POST",
+      body: JSON.stringify({ dish: state.dish, replace: state.duplicate_of != null }),
+    });
+    dropDraft(state);
+    return true;
+  } catch (error) {
+    state.error = error.status === 422 ? T.drafts.invalid(invalidFields(error.detail)) : error.message;
+    renderDraft(state);
+    return false;
+  }
+}
+
+async function discardDraft(state) {
+  state.node.inert = true;
+  try {
+    await api(`/api/drafts/${state.id}`, { method: "DELETE" });
+    dropDraft(state);
+  } catch (error) {
+    state.error = error.message;
+    renderDraft(state);
+  }
+}
+
+/** Run a bulk action with the drafts area locked, then reload once. */
+async function bulk(action) {
+  bulkRunning = true;
+  updateDraftsHead();
+  const saved = await action([...drafts.values()]);
+  bulkRunning = false;
+  updateDraftsHead();
+  refreshDishes(saved);
+}
+
+// Duplicates stay: replacing a dish in the library needs its own click.
+const saveAll = () =>
+  bulk(async (states) => {
+    let saved = false;
+    for (const state of states) if (state.duplicate_of == null) saved = (await saveDraft(state)) || saved;
+    return saved;
+  });
+
+function discardAll() {
+  if (!confirm(T.drafts.discardAllConfirm(drafts.size))) return;
+  bulk(async (states) => {
+    await Promise.all(states.map(discardDraft));
+    return false;
+  });
+}
+
+function toggleEdit(state) {
+  state.editing = !state.editing;
+  renderDraft(state);
+  state.node.querySelector(state.editing ? "input" : ".edit-toggle").focus();
+}
+
+const webUrl = (text) => (URL.canParse(text) && /^https?:\/\//i.test(text) ? new URL(text) : null);
+const numberValue = (input) => (input.value === "" ? null : input.valueAsNumber);
+const options = (labels, selected) =>
+  Object.entries(labels).map(([value, label]) => el("option", { value, selected: value === selected }, label));
+
+function draftSummary({ dish, source }) {
+  const link = webUrl(dish.source) ?? webUrl(source);
+  return [
+    el("h3", {}, dish.name),
+    el(
+      "p",
+      { class: "facts-row" },
+      el("span", { class: "strong" }, T.kcal(number.format(dish.kcal_per_serving))),
+      el("span", { class: "strong" }, T.protein(grams(dish.protein_g_per_serving))),
+      el("span", {}, T.drafts.perServing(T.nutritionShort[dish.nutrition_source] ?? dish.nutrition_source)),
+    ),
+    el(
+      "p",
+      { class: "facts-row" },
+      el("span", {}, T.drafts.servings(number.format(dish.servings))),
+      el("span", {}, T.proteinSources[dish.protein_source] ?? dish.protein_source),
+      dish.meal_types.length > 0 && el("span", {}, dish.meal_types.map((meal) => T.meals[meal] ?? meal).join(", ")),
+      dish.prep_minutes != null && el("span", {}, T.drafts.minutes(dish.prep_minutes)),
+      dish.meal_prep && badge(T.drafts.mealPrep, "cook"),
+    ),
+    dish.ingredients.length > 0 &&
+      el("ul", { class: "ingredients" }, dish.ingredients.map((item) => el("li", {}, el("span", { class: "amount" }, amountText(item)), el("span", {}, item.name)))),
+    dish.notes && el("p", { class: "draft-notes" }, dish.notes),
+    link && el("p", { class: "draft-source" }, T.drafts.source, " ", el("a", { href: link.href, target: "_blank", rel: "noopener noreferrer" }, link.hostname)),
+  ];
+}
+
+function ingredientEditor(items) {
+  const F = T.drafts.fields;
+  const label = (index, key) => T.drafts.ingredientField(index + 1, F[key]);
+  const list = el("ul", { class: "ingredient-rows" });
+  const render = () => list.replaceChildren(...items.map(row));
+  const row = (item, index) =>
+    el(
+      "li",
+      { class: "ingredient-row" },
+      el("input", { type: "number", min: 0, step: "any", inputmode: "decimal", class: "ing-amount", value: item.amount, placeholder: F.amount, "aria-label": label(index, "amount"), oninput: (e) => (item.amount = numberValue(e.target)) }),
+      el("input", { type: "text", class: "ing-unit", value: item.unit, placeholder: F.unit, "aria-label": label(index, "unit"), oninput: (e) => (item.unit = e.target.value) }),
+      el("input", { type: "text", class: "ing-name", value: item.name, placeholder: T.drafts.ingredient, "aria-label": label(index, "name"), oninput: (e) => (item.name = e.target.value) }),
+      el("select", { class: "ing-dept", "aria-label": label(index, "department"), onchange: (e) => (item.department = e.target.value) }, options(T.departments, item.department)),
+      el("button", { type: "button", class: "quiet danger ing-remove", "aria-label": T.drafts.removeIngredient(item.name), onclick: () => { items.splice(index, 1); render(); add.focus(); } }, "×"),
+    );
+  const add = el("button", {
+    type: "button",
+    class: "quiet",
+    onclick: () => {
+      items.push({ name: "", amount: null, unit: "", department: "other" });
+      render();
+      list.lastElementChild.querySelector("input").focus();
+    },
+  }, `+ ${T.drafts.addIngredient}`);
+  render();
+  return el(
+    "fieldset",
+    { class: "field wide" },
+    el("legend", {}, F.ingredients),
+    el("div", { class: "ingredient-head", "aria-hidden": "true" }, el("span", {}, F.amount), el("span", {}, F.unit), el("span", {}, T.drafts.ingredient), el("span", {}, F.department)),
+    list,
+    el("div", {}, add),
+  );
+}
+
+function draftForm(state) {
+  const { dish } = state;
+  const F = T.drafts.fields;
+  const field = (key, control, wide) => el("label", { class: wide ? "field wide" : "field" }, el("span", {}, F[key]), control);
+  const text = (key) => el("input", { type: "text", value: dish[key], oninput: (e) => (dish[key] = e.target.value) });
+  const num = (key, step, onEdit) =>
+    el("input", { type: "number", min: 0, step, inputmode: "decimal", value: dish[key], oninput: (e) => { dish[key] = numberValue(e.target); onEdit?.(); } });
+  const choice = (key, labels, onPick) =>
+    el("select", { onchange: (e) => { dish[key] = e.target.value; onPick?.(); } }, options(labels, dish[key]));
+  const check = (label, checked, onChange) =>
+    el("label", { class: "check" }, el("input", { type: "checkbox", checked, onchange: (e) => onChange(e.target.checked) }), label);
+
+  // Typed-in nutrition values count as the user's own, unless the user picked a source.
+  const nutrition = choice("nutrition_source", T.nutritionShort, () => (state.nutritionPicked = true));
+  const ownValue = () => {
+    if (!state.nutritionPicked) nutrition.value = dish.nutrition_source = "user";
+  };
+  return el(
+    "div",
+    { class: "draft-form" },
+    field("name", text("name"), true),
+    field("servings", num("servings", "any")),
+    field("kcal_per_serving", num("kcal_per_serving", 1, ownValue)),
+    field("protein_g_per_serving", num("protein_g_per_serving", "any", ownValue)),
+    field("nutrition_source", nutrition),
+    field("protein_source", choice("protein_source", T.proteinSources)),
+    field("prep_minutes", num("prep_minutes", 1)),
+    check(F.meal_prep, dish.meal_prep, (on) => (dish.meal_prep = on)),
+    el(
+      "fieldset",
+      { class: "field wide" },
+      el("legend", {}, F.meal_types),
+      el("div", { class: "checks" }, MEALS.map((meal) =>
+        check(T.meals[meal], dish.meal_types.includes(meal), (on) => {
+          dish.meal_types = MEALS.filter((m) => (m === meal ? on : dish.meal_types.includes(m)));
+        }))),
+    ),
+    ingredientEditor(dish.ingredients),
+    field("notes", el("textarea", { rows: 2, oninput: (e) => (dish.notes = e.target.value) }, dish.notes), true),
+  );
+}
+
+function draftNode(state) {
+  const duplicate = state.duplicate_of != null;
+  const save = async () => (await saveDraft(state)) && refreshDishes(true);
+  const discard = async () => {
+    await discardDraft(state);
+    refreshDishes(false);
+  };
+  return el(
+    "li",
+    { class: duplicate ? "draft duplicate" : "draft" },
+    duplicate && el("p", { class: "draft-duplicate" }, T.drafts.duplicate),
+    state.editing ? draftForm(state) : draftSummary(state),
+    state.error && note("error", state.error),
+    el(
+      "div",
+      { class: "draft-actions" },
+      el("button", { type: "button", class: "edit-toggle", onclick: () => toggleEdit(state) }, state.editing ? T.drafts.done : T.drafts.edit),
+      el("button", { type: "button", class: "quiet danger", onclick: discard }, T.drafts.discard),
+      el("button", { type: "button", class: "primary", onclick: save }, duplicate ? T.drafts.replace : T.drafts.save),
+    ),
+  );
+}
+
+function openImport() {
+  showTab($("#tab-dishes"));
+  importSource.focus();
+}
+
+function setupImport() {
+  importSource.placeholder = T.import.placeholder;
+  importCount.querySelector(".bar").setAttribute("aria-label", T.import.progressLabel);
+  importForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const source = importSource.value.trim();
+    if (source) runImport(source);
+  });
+  $("#save-all").addEventListener("click", saveAll);
+  $("#discard-all").addEventListener("click", discardAll);
+}
 
 function dishNode(dish) {
   const stats = dish.stats;
@@ -403,7 +755,7 @@ function dishNode(dish) {
     ? el("span", { class: "rating", "aria-label": T.dishes.ratingLabel(oneDecimal.format(stats.avg_score), stats.ratings) }, T.dishes.rating(oneDecimal.format(stats.avg_score)))
     : el("span", { class: "muted" }, T.dishes.unrated);
   const remove = () => {
-    if (confirm(T.dishes.deleteConfirm(dish.name))) removeThen(`/api/dishes/${dish.id}`, "dishes");
+    if (confirm(T.dishes.deleteConfirm(dish.name))) removeThen(`/api/dishes/${dish.id}`, "library");
   };
   return el(
     "li",
@@ -510,29 +862,31 @@ async function renderProfile() {
 const views = {
   week: view("week", renderWeek),
   shopping: view("shopping", renderShopping),
-  dishes: view("dishes", renderDishes),
+  library: view("library", renderDishes),
   profile: view("profile", renderProfile),
 };
 
 // ---------- Setup ----------
 
+const tabs = [...document.querySelectorAll('[role="tab"]')];
+
+function showTab(tab) {
+  for (const t of tabs) {
+    const on = t === tab;
+    t.setAttribute("aria-selected", String(on));
+    t.tabIndex = on ? 0 : -1;
+    document.getElementById(t.getAttribute("aria-controls")).hidden = !on;
+  }
+}
+
 function setupTabs() {
-  const tabs = [...document.querySelectorAll('[role="tab"]')];
-  const select = (tab) => {
-    for (const t of tabs) {
-      const on = t === tab;
-      t.setAttribute("aria-selected", String(on));
-      t.tabIndex = on ? 0 : -1;
-      document.getElementById(t.getAttribute("aria-controls")).hidden = !on;
-    }
-  };
   tabs.forEach((tab, index) => {
-    tab.addEventListener("click", () => select(tab));
+    tab.addEventListener("click", () => showTab(tab));
     tab.addEventListener("keydown", (event) => {
       const step = { ArrowRight: 1, ArrowLeft: -1 }[event.key];
       if (!step) return;
       const next = tabs[(index + step + tabs.length) % tabs.length];
-      select(next);
+      showTab(next);
       next.focus();
     });
   });
@@ -553,7 +907,7 @@ function setupChat() {
   for (const button of document.querySelectorAll("[data-starter]")) {
     const starter = T.starters[button.dataset.starter];
     button.textContent = starter.label;
-    button.addEventListener("click", () => send(starter.message));
+    button.addEventListener("click", () => (button.dataset.starter === "addDish" ? openImport() : send(starter.message)));
   }
   $("#reset").addEventListener("click", newConversation);
 }
@@ -566,7 +920,12 @@ async function init() {
   }
   setupTabs();
   setupChat();
+  setupImport();
   Object.values(views).forEach((load) => load());
+  loadDrafts();
+  api("/api/import/status")
+    .then((status) => status.running && followImport(status))
+    .catch((error) => importLog.append(note("error", error.message)));
   try {
     const history = await api("/api/chat/history");
     history.forEach(renderEntry);

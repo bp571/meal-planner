@@ -15,9 +15,10 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from meal_planner import services
+from meal_planner import importer, services
+from meal_planner.agent import ChatSession
 from meal_planner.db import session_scope
-from meal_planner.models import PlanView, ShoppingList, WeekPlan
+from meal_planner.models import DishIn, DraftView, PlanView, ShoppingList, WeekPlan
 from meal_planner.services import ServiceError
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -40,15 +41,17 @@ class Chat:
 
 
 chat = Chat()
+import_job = importer.ImportJob()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     yield
-    if chat.task and not chat.task.done():
-        chat.task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await chat.task
+    for task in (chat.task, import_job.task):
+        if task and not task.done():
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
     await chat.close()
 
 
@@ -100,8 +103,6 @@ async def _run_turn(
             if user_text is not None:
                 chat.transcript.append({"role": "user", "text": user_text})
             if chat.session is None:
-                from meal_planner.agent import ChatSession  # lazy: the app imports without the agent
-
                 session = ChatSession()
                 await session.start()
                 chat.session = session
@@ -158,6 +159,63 @@ async def chat_reset() -> dict:
         raise HTTPException(409, "A chat turn is running.")
     async with chat.lock:
         await chat.close()
+    return {"ok": True}
+
+
+# --- Dish import ---
+
+
+class ImportIn(BaseModel):
+    source: str = Field(min_length=1)  # a Notion link or recipe text
+
+
+class DraftSaveIn(BaseModel):
+    dish: DishIn
+    replace: bool = False  # update the active dish with the same name
+
+
+@app.post("/api/import")
+async def import_start(body: ImportIn) -> StreamingResponse:
+    """Extract dishes into drafts and stream the import events as NDJSON (see importer.py).
+
+    Like a chat turn, the import runs in a background task and keeps going when the tab closes.
+    """
+    if import_job.running:
+        raise HTTPException(409, "An import is running.")
+    queue: asyncio.Queue[dict] = asyncio.Queue()
+    import_job.start(body.source, queue.put_nowait)
+
+    async def stream() -> AsyncIterator[str]:
+        while True:
+            event = await queue.get()
+            yield json.dumps(event, ensure_ascii=False) + "\n"
+            if event["type"] == "done":
+                return
+
+    return StreamingResponse(stream(), media_type="application/x-ndjson")
+
+
+@app.get("/api/import/status")
+def import_status() -> dict:
+    return {"running": import_job.running, "done": import_job.done, "total": import_job.total}
+
+
+@app.get("/api/drafts")
+def get_drafts() -> list[DraftView]:
+    with session_scope() as session:
+        return services.list_drafts(session)
+
+
+@app.post("/api/drafts/{draft_id}/save")
+def save_draft(draft_id: int, body: DraftSaveIn) -> dict:
+    with session_scope() as session:
+        return services.save_draft(session, draft_id, body.dish, body.replace).model_dump(mode="json")
+
+
+@app.delete("/api/drafts/{draft_id}")
+def delete_draft(draft_id: int) -> dict:
+    with session_scope() as session:
+        services.discard_draft(session, draft_id)
     return {"ok": True}
 
 

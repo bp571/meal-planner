@@ -172,6 +172,15 @@ class Dish(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=_utcnow)
 
 
+class DishDraft(SQLModel, table=True):
+    """A dish from the import that the user has not saved or discarded yet."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    data: dict = Field(sa_column=Column(JSON, nullable=False))  # DishIn.model_dump(mode="json")
+    source: str = ""  # what the user imported: the link or the pasted text
+    created_at: datetime = Field(default_factory=_utcnow)
+
+
 class Rating(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     dish_id: int = Field(foreign_key="dish.id", index=True)
@@ -261,6 +270,13 @@ class PlanView(BaseModel):
     slots: list[SlotView]  # ordered by day, then meal
     check: PlanCheck
     have_at_home: list[str]
+
+
+class DraftView(BaseModel):
+    id: int
+    dish: DishIn
+    source: str
+    duplicate_of: int | None  # id of an active dish with the same name (case-insensitive)
 
 
 class DishStats(BaseModel):

@@ -30,6 +30,7 @@ const TEXTS = {
       package: "Nährwerte von der Packung",
       user: "Nährwerte: eigene Angabe",
     },
+    nutritionShort: { estimate: "geschätzt", package: "Packung", user: "eigene Angabe" },
 
     kcal: (n) => `~${n} kcal`,
     protein: (n) => `${n} g Protein`,
@@ -49,7 +50,7 @@ const TEXTS = {
     },
     starters: {
       planWeek: { label: "Woche planen", message: "Lass uns die nächste Woche planen." },
-      addDish: { label: "Gericht hinzufügen", message: "Ich möchte ein neues Gericht hinzufügen." },
+      addDish: { label: "Gericht hinzufügen" }, // opens the import in the "Gerichte" tab
     },
     // Status line while the agent uses a tool. Keys are the tool names from tools.py.
     tools: {
@@ -59,9 +60,9 @@ const TEXTS = {
       forget: "Lösche einen Gedächtnis-Eintrag …",
       list_dishes: "Sehe die Gerichte durch …",
       get_dish: "Lese das Rezept …",
-      save_dish: "Speichere Gericht …",
+      update_dish: "Ändere Gericht …",
+      create_fixed_item_dish: "Lege festen Eintrag an …",
       archive_dish: "Lösche Gericht …",
-      read_notion: "Lese die Notion-Seite …",
       get_plan: "Lese den Wochenplan …",
       save_plan_draft: "Erstelle den Planentwurf …",
       update_slot: "Ändere den Plan …",
@@ -101,8 +102,61 @@ const TEXTS = {
       emptyHint: "Sie entsteht aus dem Wochenplan, sobald es einen gibt.",
     },
 
+    import: {
+      title: "Gericht hinzufügen",
+      label: "Rezept, Link oder Fertiggericht",
+      placeholder:
+        "Notion-Link, Rezepttext, Instagram-Beschreibung oder Fertiggericht mit Packungsgröße – auch mehrere auf einmal",
+      submit: "Auslesen",
+      hint: "Instagram-Links lassen sich nicht öffnen. Füg stattdessen die Beschreibung unter dem Post ein.",
+      starting: "Lese aus …",
+      running: "Import läuft …",
+      progressLabel: "Fortschritt beim Auslesen",
+      progress: (done, total) => `${done} von ${total}`,
+      result: (n) => (n === 0 ? "Keine Gerichte gefunden." : n === 1 ? "1 Gericht zum Prüfen" : `${n} Gerichte zum Prüfen`),
+    },
+
+    drafts: {
+      title: (n) => `Zu prüfen (${n})`,
+      saveAll: "Alle speichern",
+      discardAll: "Alle verwerfen",
+      discardAllConfirm: (n) => (n === 1 ? "Den Entwurf verwerfen?" : `Alle ${n} Entwürfe verwerfen?`),
+      duplicate: "Gibt es schon in deiner Bibliothek",
+      edit: "Bearbeiten",
+      done: "Fertig",
+      save: "Speichern",
+      replace: "Ersetzen",
+      discard: "Verwerfen",
+      perServing: (source) => `pro Portion (${source})`,
+      servings: (n) => (n === "1" ? "1 Portion" : `${n} Portionen`),
+      minutes: (n) => `${n} min`,
+      mealPrep: "Meal Prep",
+      source: "Quelle:",
+      invalid: (fields) => `Bitte Eingaben prüfen: ${fields}`,
+      fields: {
+        name: "Name",
+        servings: "Portionen",
+        kcal_per_serving: "kcal pro Portion",
+        protein_g_per_serving: "Protein pro Portion (g)",
+        nutrition_source: "Nährwerte",
+        protein_source: "Proteinquelle",
+        meal_types: "Mahlzeiten",
+        prep_minutes: "Zubereitung (min)",
+        meal_prep: "Meal Prep (hält sich mehrere Tage)",
+        notes: "Notizen",
+        ingredients: "Zutaten",
+        amount: "Menge",
+        unit: "Einheit",
+        department: "Abteilung",
+      },
+      ingredientField: (n, field) => `Zutat ${n} (${field})`,
+      ingredient: "Zutat",
+      addIngredient: "Zutat hinzufügen",
+      removeIngredient: (name) => `${name || "Zutat"} entfernen`,
+    },
+
     dishes: {
-      title: (n) => (n === 1 ? "1 Gericht" : `${n} Gerichte`),
+      title: (n) => `Meine Gerichte (${n})`,
       perServing: "pro Portion",
       rating: (avg) => `★ ${avg}`,
       ratingLabel: (avg, n) => `Durchschnitt ${avg} von 5 aus ${n} ${n === 1 ? "Bewertung" : "Bewertungen"}`,
@@ -111,7 +165,7 @@ const TEXTS = {
       deleteLabel: (name) => `${name} löschen`,
       deleteConfirm: (name) => `„${name}“ löschen? Bewertungen und alte Pläne bleiben erhalten.`,
       emptyTitle: "Noch keine Gerichte",
-      emptyHint: "Füg im Chat Rezepte als Text ein oder schick einen Notion-Link. Der Assistent legt daraus Gerichte an.",
+      emptyHint: "Füg oben ein Rezept oder einen Notion-Link ein. Sobald du die Entwürfe speicherst, stehen die Gerichte hier.",
     },
 
     profile: {
