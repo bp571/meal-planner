@@ -1,0 +1,186 @@
+// All UI text in one place. The MVP is German; add an "en" entry later and pick it below.
+
+const TEXTS = {
+  de: {
+    lang: "de",
+    locale: "de-DE",
+    appName: "Meal Planner",
+
+    weekdays: {
+      mon: "Montag", tue: "Dienstag", wed: "Mittwoch", thu: "Donnerstag",
+      fri: "Freitag", sat: "Samstag", sun: "Sonntag",
+    },
+    days: { mon: "Mo", tue: "Di", wed: "Mi", thu: "Do", fri: "Fr", sat: "Sa", sun: "So" },
+    meals: { breakfast: "Frühstück", lunch: "Mittag", dinner: "Abend", snack: "Snack" },
+    departments: {
+      produce: "Obst & Gemüse",
+      bakery: "Brot & Backwaren",
+      dairy: "Kühlregal & Milchprodukte",
+      meat_fish: "Fleisch & Fisch",
+      frozen: "Tiefkühl",
+      dry_goods: "Trockenware",
+      canned: "Konserven & Gläser",
+      spices_sauces: "Gewürze & Saucen",
+      drinks: "Getränke",
+      other: "Sonstiges",
+    },
+    proteinSources: { meat: "Fleisch", fish: "Fisch", vegetarian: "vegetarisch", vegan: "vegan" },
+    nutritionSources: {
+      estimate: "Nährwerte geschätzt",
+      package: "Nährwerte von der Packung",
+      user: "Nährwerte: eigene Angabe",
+    },
+
+    kcal: (n) => `~${n} kcal`,
+    protein: (n) => `${n} g Protein`,
+
+    tabs: { week: "Woche", shopping: "Einkauf", dishes: "Gerichte", profile: "Profil & Gedächtnis" },
+
+    chat: {
+      newChat: "Neues Gespräch",
+      resetConfirm:
+        "Neues Gespräch beginnen? Der Chatverlauf wird gelöscht. Profil, Gerichte und Gedächtnis bleiben.",
+      inputLabel: "Nachricht an den Assistenten",
+      placeholder: "Schreib eine Nachricht …",
+      send: "Senden",
+      thinking: "Denkt nach …",
+      remembered: "Gemerkt:",
+      busy: "Es läuft noch eine Antwort. Warte kurz und versuch es dann noch einmal.",
+    },
+    starters: {
+      planWeek: { label: "Woche planen", message: "Lass uns die nächste Woche planen." },
+      addDish: { label: "Gericht hinzufügen", message: "Ich möchte ein neues Gericht hinzufügen." },
+    },
+    // Status line while the agent uses a tool. Keys are the tool names from tools.py.
+    tools: {
+      get_profile: "Lese das Profil …",
+      save_profile: "Speichere das Profil …",
+      remember: "Merke mir das …",
+      forget: "Lösche einen Gedächtnis-Eintrag …",
+      list_dishes: "Sehe die Gerichte durch …",
+      get_dish: "Lese das Rezept …",
+      save_dish: "Speichere Gericht …",
+      archive_dish: "Lösche Gericht …",
+      read_notion: "Lese die Notion-Seite …",
+      get_plan: "Lese den Wochenplan …",
+      save_plan_draft: "Erstelle den Planentwurf …",
+      update_slot: "Ändere den Plan …",
+      finalize_plan: "Mache den Plan fest …",
+      rate_dish: "Speichere die Bewertung …",
+      get_shopping_list: "Erstelle die Einkaufsliste …",
+      WebSearch: "Suche im Web …",
+      WebFetch: "Lese eine Webseite …",
+      default: "Arbeite …",
+    },
+
+    week: {
+      title: (kw) => `KW ${kw}`,
+      from: (date) => `ab ${date}`,
+      draft: "Entwurf",
+      final: "Fest",
+      weekTotal: (kcal) => `${kcal} diese Woche`,
+      ofTarget: (target) => `Ziel ${target}`,
+      proteinTotal: (g, target) => (target ? `${g} g Protein von ${target} g` : `${g} g Protein`),
+      cook: (days) => `kochen, reicht für ${days}`,
+      leftover: (day) => (day ? `Rest von ${day}` : "Rest"),
+      kinds: { fixed: "fester Eintrag", flex: "Flex-Mahlzeit", unplanned: "nicht geplant" },
+      emptyCell: "–",
+      emptyTitle: "Noch kein Wochenplan",
+      emptyHint: "Klick im Chat auf „Woche planen“. Der Entwurf erscheint dann hier und aktualisiert sich, während ihr ihn anpasst.",
+    },
+
+    shopping: {
+      title: (date) => `Einkaufsliste ab ${date}`,
+      copy: "Kopieren",
+      copied: "Kopiert. Du kannst die Liste jetzt einfügen.",
+      copyFailed: "Kopieren hat nicht geklappt. Markiere die Liste und kopiere sie von Hand.",
+      asNeeded: "nach Bedarf",
+      draftHint: "Der Plan ist noch ein Entwurf. Die Liste ändert sich, wenn du den Plan anpasst.",
+      skipped: (items) => `Nicht auf der Liste, weil schon zu Hause: ${items}`,
+      emptyTitle: "Noch keine Einkaufsliste",
+      emptyHint: "Sie entsteht aus dem Wochenplan, sobald es einen gibt.",
+    },
+
+    dishes: {
+      title: (n) => (n === 1 ? "1 Gericht" : `${n} Gerichte`),
+      perServing: "pro Portion",
+      rating: (avg) => `★ ${avg}`,
+      ratingLabel: (avg, n) => `Durchschnitt ${avg} von 5 aus ${n} ${n === 1 ? "Bewertung" : "Bewertungen"}`,
+      unrated: "noch nicht bewertet",
+      delete: "Löschen",
+      deleteLabel: (name) => `${name} löschen`,
+      deleteConfirm: (name) => `„${name}“ löschen? Bewertungen und alte Pläne bleiben erhalten.`,
+      emptyTitle: "Noch keine Gerichte",
+      emptyHint: "Füg im Chat Rezepte als Text ein oder schick einen Notion-Link. Der Assistent legt daraus Gerichte an.",
+    },
+
+    profile: {
+      title: "Profil",
+      empty: "Noch kein Profil – das Onboarding läuft im Chat.",
+      none: "keine",
+      no: "nein",
+      daily: "täglich",
+      goal: "Ziel",
+      goals: { lose: "abnehmen", maintain: "Gewicht halten", gain: "aufbauen" },
+      kcalTarget: "Kalorienziel",
+      proteinTarget: "Proteinziel",
+      perDay: (value) => `${value} pro Tag`,
+      calorieMode: "Kalorienmodus",
+      calorieModes: { daily: "Tagesziel", weekly: "Wochenbudget" },
+      household: "Haushalt",
+      persons: (n) => (n === 1 ? "1 Person" : `${n} Personen`),
+      meals: "Geplante Mahlzeiten",
+      breakfast: "Frühstück",
+      breakfastVariety: {
+        same: "immer gleich",
+        rotate: "abwechselnd aus wenigen Standards",
+        varied: "jeden Tag anders",
+      },
+      cookingTime: "Kochzeit",
+      cookingTimeValue: (weekday, weekend) =>
+        `${weekday} min unter der Woche, ${weekend} min am Wochenende`,
+      mealPrep: "Meal Prep",
+      mealPrepYes: (n) => `ja, dasselbe Gericht höchstens ${n} ${n === 1 ? "Tag" : "Tage"}`,
+      diet: "Ernährung",
+      diets: { omnivore: "alles", pescetarian: "pescetarisch", vegetarian: "vegetarisch", vegan: "vegan" },
+      limits: "Fleisch und Fisch",
+      meatLimit: (n) => `Fleisch höchstens ${n}× pro Woche`,
+      fishLimit: (n) => `Fisch höchstens ${n}× pro Woche`,
+      allergies: "Allergien und Unverträglichkeiten",
+      dislikes: "Abneigungen",
+      fixedItems: "Feste Einträge",
+      fixedItem: (name, meal, days, servings) =>
+        `${name}: ${meal}, ${days}${servings ? `, ${servings} Portionen` : ""}`,
+      flexMeals: "Flex-Mahlzeiten",
+      flexMeal: (label, perWeek, meal, kcal, day) =>
+        `${label}: ${perWeek}× pro Woche, ${meal}, ${kcal}, ${day ? `am ${day}` : "Tag flexibel"}`,
+      unplannedMeals: "Nicht geplant",
+      unplannedMeal: (label, meal, days, kcal) => `${label}: ${meal}, ${days}, ${kcal ?? "zählt nicht"}`,
+      shoppingDays: "Einkaufstage",
+      pantry: "Basisvorrat",
+      equipment: "Küchengeräte",
+      notes: "Notizen",
+    },
+
+    memory: {
+      title: "Gedächtnis",
+      empty: "Noch nichts gemerkt. Was der Assistent sich im Chat merkt, erscheint hier.",
+      delete: "Löschen",
+      deleteLabel: (text) => `Eintrag „${text}“ löschen`,
+      categories: {
+        preference: "Vorliebe",
+        dislike: "Abneigung",
+        habit: "Gewohnheit",
+        feedback: "Feedback",
+        other: "Sonstiges",
+      },
+    },
+
+    errors: {
+      prefix: "Fehler:",
+      generic: "Etwas ist schiefgelaufen. Lade die Seite neu und versuch es noch einmal.",
+    },
+  },
+};
+
+export const T = TEXTS.de;

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>Meal Planner</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script type="module" src="/static/app.js"></script>
+</head>
+<body>
+  <div class="app">
+    <section class="chat" aria-labelledby="app-name">
+      <header class="chat-head">
+        <h1 id="app-name" data-t="appName"></h1>
+        <button id="reset" class="quiet" type="button" data-t="chat.newChat"></button>
+      </header>
+      <div id="log" class="log" role="log"></div>
+      <p id="status" class="status" role="status" hidden></p>
+      <form id="composer" class="composer">
+        <div class="starters">
+          <button type="button" class="chip" data-starter="planWeek"></button>
+          <button type="button" class="chip" data-starter="addDish"></button>
+        </div>
+        <div class="input-row">
+          <label for="input" class="sr-only" data-t="chat.inputLabel"></label>
+          <textarea id="input" rows="2"></textarea>
+          <button id="send" type="submit" class="primary" data-t="chat.send"></button>
+        </div>
+      </form>
+    </section>
+
+    <main class="panel">
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" id="tab-week" aria-controls="view-week" aria-selected="true" data-t="tabs.week"></button>
+        <button type="button" role="tab" id="tab-shopping" aria-controls="view-shopping" aria-selected="false" tabindex="-1" data-t="tabs.shopping"></button>
+        <button type="button" role="tab" id="tab-dishes" aria-controls="view-dishes" aria-selected="false" tabindex="-1" data-t="tabs.dishes"></button>
+        <button type="button" role="tab" id="tab-profile" aria-controls="view-profile" aria-selected="false" tabindex="-1" data-t="tabs.profile"></button>
+      </div>
+      <section id="view-week" class="view" role="tabpanel" aria-labelledby="tab-week" tabindex="0"></section>
+      <section id="view-shopping" class="view" role="tabpanel" aria-labelledby="tab-shopping" tabindex="0" hidden></section>
+      <section id="view-dishes" class="view" role="tabpanel" aria-labelledby="tab-dishes" tabindex="0" hidden></section>
+      <section id="view-profile" class="view" role="tabpanel" aria-labelledby="tab-profile" tabindex="0" hidden></section>
+    </main>
+  </div>
+</body>
+</html>
