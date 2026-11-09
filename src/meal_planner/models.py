@@ -294,9 +294,19 @@ class ShoppingItem(BaseModel):
     department: Department
 
 
+class ShoppingTrip(BaseModel):
+    """One shopping trip: buys for its own day and the following days until the next trip."""
+
+    day: Weekday  # the shopping day
+    shopping_date: date
+    days: list[Weekday]  # the days this trip buys for
+    departments: dict[Department, list[ShoppingItem]]  # in DEPARTMENTS order, empty ones left out
+    text: str  # plain text to copy, e.g. into an iPhone note
+
+
 class ShoppingList(BaseModel):
     plan_id: int
     week_start: date
-    departments: dict[Department, list[ShoppingItem]]  # in DEPARTMENTS order, empty ones left out
+    trips: list[ShoppingTrip]  # one per profile shopping day, in week order
     skipped: list[str]  # pantry staples and have_at_home items that were left out
-    text: str  # plain text to copy, e.g. into an iPhone note
+    text: str  # all trips as plain text

@@ -288,8 +288,8 @@ def build_tools(on_event: OnEvent) -> list[SdkMcpTool]:
 
     @tool(
         "get_shopping_list",
-        "Read the shopping list of a plan, by department, plus the copyable text "
-        "(null if there is no plan).",
+        "Read the shopping list of a plan: one list per shopping trip (profile shopping_days), "
+        "by department, plus the copyable text (null if there is no plan).",
         PlanIdArgs.model_json_schema(),
     )
     @handled()

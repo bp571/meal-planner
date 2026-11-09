@@ -1,10 +1,22 @@
-"""Pure shopping-list calculations: scale, merge, filter, round and format. No database access."""
+"""Pure shopping-list calculations: split into trips, scale, merge, filter, round and format.
+No database access."""
 
 import math
-from datetime import date
+from datetime import date, timedelta
 
 from meal_planner import texts
-from meal_planner.models import DEPARTMENTS, Department, Dish, Ingredient, ShoppingItem, Slot
+from meal_planner.models import (
+    DEPARTMENTS,
+    WEEKDAYS,
+    Department,
+    Dish,
+    Ingredient,
+    ShoppingItem,
+    ShoppingTrip,
+    Slot,
+    Weekday,
+)
+from meal_planner.planning import slot_order
 
 # Units bought in whole numbers: amounts are rounded up. "" means pieces ("2 Eier").
 WHOLE_UNITS = {
@@ -74,10 +86,12 @@ def format_number(x: float) -> str:
     return str(int(x)) if x == int(x) else f"{x:.1f}".replace(".", ",")
 
 
-def to_text(departments: dict[Department, list[ShoppingItem]], week_start: date, language: str = "de") -> str:
+def to_text(departments: dict[Department, list[ShoppingItem]], title: str, language: str = "de") -> str:
     """Plain text to copy, e.g. into an iPhone note."""
     labels = texts.labels(language)
-    lines = [labels["shopping"]["title"].format(date=week_start.strftime("%d.%m.%Y"))]
+    lines = [title]
+    if not departments:
+        lines += ["", labels["shopping"]["nothing"]]
     for department, items in departments.items():
         lines += ["", labels["departments"][department]]
         for item in items:
@@ -86,3 +100,80 @@ def to_text(departments: dict[Department, list[ShoppingItem]], week_start: date,
             else:
                 lines.append("- " + " ".join(p for p in (format_number(item.amount), item.unit, item.name) if p))
     return "\n".join(lines)
+
+
+def trip_days(shopping_days: list[Weekday]) -> dict[Weekday, list[Weekday]]:
+    """Shopping day -> the days it buys for, in week order: its own day up to the day before the
+    next shopping day. Days before the first shopping day belong to the first trip. No shopping
+    days: one trip on Monday."""
+    starts = sorted(set(shopping_days), key=WEEKDAYS.index) or ["mon"]
+    trips: dict[Weekday, list[Weekday]] = {day: [] for day in starts}
+    current = starts[0]
+    for day in WEEKDAYS:
+        if day in trips:
+            current = day
+        trips[current].append(day)
+    return trips
+
+
+def split_by_trip(slots: list[Slot], shopping_days: list[Weekday]) -> dict[Weekday, list[Slot]]:
+    """Slots per shopping day. A leftover slot (cook=False) goes with the latest earlier cooking
+    of the same dish, because its ingredients are bought for that cooking."""
+    trips = trip_days(shopping_days)
+    trip_of = {day: trip for trip, days in trips.items() for day in days}
+    groups: dict[Weekday, list[Slot]] = {trip: [] for trip in trips}
+    cooked_in: dict[int, Weekday] = {}  # dish id -> trip of its latest cooking so far
+    for slot in sorted(slots, key=slot_order):
+        trip = trip_of[slot.day]
+        if slot.kind == "dish" and slot.dish_id is not None:
+            if slot.cook:
+                cooked_in[slot.dish_id] = trip
+            else:
+                trip = cooked_in.get(slot.dish_id, trip)
+        groups[trip].append(slot)
+    return groups
+
+
+def build_trips(
+    slots: list[Slot],
+    dishes: dict[int, Dish],
+    household_size: int,
+    exclude: list[str],
+    shopping_days: list[Weekday],
+    week_start: date,
+    language: str = "de",
+) -> tuple[list[ShoppingTrip], list[str]]:
+    """One shopping list per trip (see build_items) and the skipped ingredient names of all trips.
+
+    A single trip keeps the plain title "Einkaufsliste ab <week_start>"; several trips name their
+    day, date and the days they buy for.
+    """
+    labels = texts.labels(language)
+    days_of = trip_days(shopping_days)
+    trips: list[ShoppingTrip] = []
+    skipped: dict[str, str] = {}
+    for day, trip_slots in split_by_trip(slots, shopping_days).items():
+        departments, trip_skipped = build_items(trip_slots, dishes, household_size, exclude)
+        for name in trip_skipped:
+            skipped.setdefault(name.casefold(), name)
+        shopping_date = week_start + timedelta(days=WEEKDAYS.index(day))
+        days = days_of[day]
+        if len(days_of) == 1:
+            title = labels["shopping"]["title"].format(date=week_start.strftime("%d.%m.%Y"))
+        else:
+            short = labels["weekdays_short"]
+            title = labels["shopping"]["trip_title"].format(
+                weekday=labels["weekdays"][day],
+                date=shopping_date.strftime("%d.%m.%Y"),
+                days=short[days[0]] if len(days) == 1 else f"{short[days[0]]}–{short[days[-1]]}",
+            )
+        trips.append(
+            ShoppingTrip(
+                day=day,
+                shopping_date=shopping_date,
+                days=days,
+                departments=departments,
+                text=to_text(departments, title, language),
+            )
+        )
+    return trips, list(skipped.values())

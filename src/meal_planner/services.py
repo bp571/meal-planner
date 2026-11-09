@@ -453,22 +453,30 @@ def recent_plans(session: Session, limit: int = 3) -> list[PlanView]:
 def get_shopping_list(session: Session, plan_id: int | None = None) -> ShoppingList | None:
     """The shopping list of a plan (default: the current plan), or None if there is no plan.
 
-    Sums the ingredients of all "dish" and "fixed" slots: amount / dish.servings * slot.servings,
-    times profile.household_size for "dish" slots only. Leaves out pantry staples and the plan's
-    have_at_home items. Text labels come from texts.labels(profile.language).
+    One list per profile shopping day, each for the days until the next one; leftovers go with
+    the trip of their cooking. Sums the ingredients of all "dish" and "fixed" slots:
+    amount / dish.servings * slot.servings, times profile.household_size for "dish" slots only.
+    Leaves out pantry staples and the plan's have_at_home items. Text labels come from
+    texts.labels(profile.language).
     """
     plan = _get_plan(session, plan_id)
     if plan is None:
         return None
     profile = _require_profile(session)
     slots = _plan_slots(session, plan.id)
-    departments, skipped = shopping.build_items(
-        slots, _dishes_for(session, slots), profile.household_size, profile.pantry_staples + plan.have_at_home
+    trips, skipped = shopping.build_trips(
+        slots,
+        _dishes_for(session, slots),
+        profile.household_size,
+        profile.pantry_staples + plan.have_at_home,
+        profile.shopping_days,
+        plan.week_start,
+        profile.language,
     )
     return ShoppingList(
         plan_id=plan.id,
         week_start=plan.week_start,
-        departments=departments,
+        trips=trips,
         skipped=skipped,
-        text=shopping.to_text(departments, plan.week_start, profile.language),
+        text="\n\n\n".join(trip.text for trip in trips),
     )

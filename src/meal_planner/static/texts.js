@@ -96,6 +96,10 @@ const TEXTS = {
     shopping: {
       title: "Einkaufsliste",
       from: (date) => `ab ${date}`,
+      trips: (n) => `${n} Einkäufe diese Woche`,
+      trip: (weekday, date) => `${weekday}, ${date}`,
+      covers: (days) => `für ${days}`,
+      nothing: "Nichts zu kaufen.",
       copy: "Kopieren",
       copied: "Kopiert. Du kannst die Liste jetzt einfügen.",
       copyFailed: "Kopieren hat nicht geklappt. Markiere die Liste und kopiere sie von Hand.",

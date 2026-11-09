@@ -29,9 +29,20 @@ LABELS: dict[str, dict[str, dict[str, str]]] = {
             "drinks": "Getränke",
             "other": "Sonstiges",
         },
+        "weekdays_short": {
+            "mon": "Mo",
+            "tue": "Di",
+            "wed": "Mi",
+            "thu": "Do",
+            "fri": "Fr",
+            "sat": "Sa",
+            "sun": "So",
+        },
         "shopping": {
             "title": "Einkaufsliste ab {date}",
+            "trip_title": "Einkauf am {weekday}, {date} (für {days})",
             "as_needed": "nach Bedarf",
+            "nothing": "Nichts zu kaufen.",
         },
     },
 }

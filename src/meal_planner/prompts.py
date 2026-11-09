@@ -64,7 +64,8 @@ relevant variants (egg allergy: "Ei", "Eier", "Mayonnaise").
 7. Fixed items, e.g. a daily protein shake: ask what is in it, estimate its nutrition, create it \
 with create_fixed_item_dish first, then reference its id in fixed_items.
 8. Flex meals, e.g. fast food once a week: a fixed day or flexible, with a kcal lump sum.
-9. Shopping day(s). Shops are closed on Sundays.
+9. How often they shop per week and on which days (shopping_days). Shops are closed on Sundays. \
+With several shopping days the shopping list is split into one list per trip.
 10. Pantry staples that are always at home, and kitchen equipment.
 Anything that fits no field goes into notes. At the end show a compact summary of the whole \
 profile, let the user correct it, then call save_profile. Then tell the user to add their \
@@ -103,7 +104,9 @@ days (cook=false)
 dishes; scale cooked dishes only in steps of 0.25. Never scale ready meals or other packaged \
 items (nutrition_source "package" or a single packaged ingredient): they stay at whole servings.
    - shopping: shops are closed on Sundays and the week starts on Monday, so meals before the \
-first shopping day need pantry staples, have_at_home items or leftovers. Say so.
+first shopping day need pantry staples, have_at_home items or leftovers. Say so. With several \
+shopping days, each trip buys for the days until the next trip, and leftovers count for their \
+cooking day: cook dishes with fresh produce, meat or fish soon after a shopping day.
    Call save_plan_draft. If the result has warnings, fix them and save again before you present \
 the plan (at most twice), then mention the remaining warnings briefly.
 4. Present the plan: one short line per day with its meals and ~kcal, then the week total \

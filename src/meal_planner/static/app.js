@@ -394,16 +394,26 @@ async function copyText(text) {
   }
 }
 
-async function renderShopping() {
-  const [list, state] = await Promise.all([api("/api/shopping"), api("/api/state")]);
-  if (!list) return empty(T.shopping.emptyTitle, T.shopping.emptyHint);
+/** One trip: a perforation and its list. With several trips each one gets its own head and copy button. */
+function tripNodes(trip, several) {
   const confirmation = el("span", { class: "copied", role: "status" });
   const perforation = el("div", { class: "perforation", "aria-hidden": "true" });
+  const departments = Object.entries(trip.departments);
+  const days = trip.days.length === 1 ? T.days[trip.days[0]] : `${T.days[trip.days[0]]}–${T.days[trip.days.at(-1)]}`;
+  const copyButton = el("div", { class: "copy" }, el("button", { type: "button", class: "primary", onclick: () => copy() }, T.shopping.copy), confirmation);
   const body = el(
     "div",
     { class: "strip-body" },
-    state.plan?.status === "draft" && el("p", { class: "hint" }, T.shopping.draftHint),
-    Object.entries(list.departments).map(([department, items]) =>
+    several &&
+      el(
+        "header",
+        { class: "trip-head" },
+        el("h3", {}, T.shopping.trip(T.weekdays[trip.day], shortDate(parseDay(trip.shopping_date)))),
+        el("p", { class: "muted" }, T.shopping.covers(days)),
+        copyButton,
+      ),
+    departments.length === 0 && el("p", { class: "hint" }, T.shopping.nothing),
+    departments.map(([department, items]) =>
       el(
         "section",
         { class: "department" },
@@ -411,7 +421,6 @@ async function renderShopping() {
         el("ul", {}, items.map((item) => el("li", {}, el("span", { class: "amount" }, amountText(item)), el("span", { class: "item" }, item.name)))),
       ),
     ),
-    list.skipped.length > 0 && el("p", { class: "hint" }, T.shopping.skipped(list.skipped.join(", "))),
   );
   // Copying tears the list off the pad: the tear runs along the perforation (see styles.css).
   const tear = () => {
@@ -423,23 +432,32 @@ async function renderShopping() {
   };
   const copy = async () => {
     try {
-      await copyText(list.text);
+      await copyText(trip.text);
       confirmation.textContent = T.shopping.copied;
       tear();
     } catch {
       confirmation.textContent = T.shopping.copyFailed;
     }
   };
+  return { copyButton, nodes: [perforation, body] };
+}
+
+async function renderShopping() {
+  const [list, state] = await Promise.all([api("/api/shopping"), api("/api/state")]);
+  if (!list) return empty(T.shopping.emptyTitle, T.shopping.emptyHint);
+  const several = list.trips.length > 1;
+  const trips = list.trips.map((trip) => tripNodes(trip, several));
   return [
     el(
       "header",
       { class: "strip-head" },
       el("h2", {}, T.shopping.title),
-      el("p", { class: "muted" }, T.shopping.from(shortDate(parseDay(list.week_start)))),
-      el("div", { class: "copy" }, el("button", { type: "button", class: "primary", onclick: copy }, T.shopping.copy), confirmation),
+      el("p", { class: "muted" }, several ? T.shopping.trips(list.trips.length) : T.shopping.from(shortDate(parseDay(list.week_start)))),
+      !several && trips[0].copyButton,
     ),
-    perforation,
-    body,
+    state.plan?.status === "draft" && el("p", { class: "hint" }, T.shopping.draftHint),
+    trips.map((trip) => trip.nodes),
+    list.skipped.length > 0 && el("p", { class: "hint" }, T.shopping.skipped(list.skipped.join(", "))),
   ];
 }
 

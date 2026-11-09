@@ -18,7 +18,7 @@ are deterministic Python, so they can be tested without an API call.
 
 - **Onboarding in chat:** goal, calorie and protein target, meals to plan, cooking time, meal
   prep, diet and meat limits, allergies and dislikes, fixed items (e.g. a daily protein shake),
-  flex meals (e.g. fast food once a week), shopping day, pantry staples.
+  flex meals (e.g. fast food once a week), one or more shopping days, pantry staples.
 - **Dish import, separate from the chat:** in the "Gerichte" tab, paste a Notion link (a page or a
   whole database), notes, Instagram captions or ready meals with their package size. Claude
   extracts each dish in the background, with ingredients and rough kcal and protein. Every dish
@@ -28,7 +28,9 @@ are deterministic Python, so they can be tested without an API call.
   against your profile and adjusts it in chat. One line per day with rough kcal, plus the weekly
   total against your target. Click a dish in the plan to see its recipe card.
 - **Shopping list:** summed quantities grouped by supermarket department, without pantry staples,
-  ready to copy into a note on your phone.
+  ready to copy into a note on your phone. With several shopping days per week it is split into
+  one list per trip, each covering the days until the next trip (leftovers count for the day they
+  are cooked).
 - **Memory:** profile, learned preferences, ratings and past plans live in a local database. You
   can see and delete every memory entry in the UI.
 

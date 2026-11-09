@@ -249,3 +249,14 @@ def test_shopping_list(session):
     shopping_list = services.get_shopping_list(session)
     assert shopping_list.skipped == ["Salz", "Reis"]
     assert shopping_list.text == "Einkaufsliste ab 09.11.2026\n\nTrockenware\n- 300 g Rote Linsen"
+
+
+def test_shopping_list_has_one_trip_per_shopping_day(session):
+    curry = add_dish(session, "Linsencurry", ingredients=[Ingredient(name="Linsen", amount=200, unit="g")])
+    save_profile(session, shopping_days=["thu", "mon"])
+    services.save_plan_draft(session, [dinner("wed", curry.id), dinner("thu", curry.id, cook=False)], MONDAY)
+    shopping_list = services.get_shopping_list(session)
+    assert [trip.day for trip in shopping_list.trips] == ["mon", "thu"]
+    assert shopping_list.trips[0].departments["other"][0].amount == 200  # the leftover is bought with its cooking
+    assert shopping_list.trips[1].departments == {}
+    assert shopping_list.text == "\n\n\n".join(trip.text for trip in shopping_list.trips)

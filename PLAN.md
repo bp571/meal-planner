@@ -284,5 +284,5 @@ Ablauf:
 - Ernährungswissen: Der Agent nutzt geprüfte Quellen (z. B. DGE-Empfehlungen, eigene
   Notizen, Artikel) beim Planen und Beantworten von Fragen, mit Quellenangabe.
   Heute hat er nur die freie Websuche.
-- Menhrere Einkauflisten pro Woche erlauben
+- ~~Mehrere Einkaufslisten pro Woche erlauben~~ (erledigt: eine Liste pro Einkaufstag im Profil)
 - ios Erinnerungen 

@@ -3,7 +3,7 @@ from datetime import date
 import pytest
 
 from meal_planner.models import Dish, Slot
-from meal_planner.shopping import build_items, round_amount, to_text
+from meal_planner.shopping import build_items, build_trips, round_amount, split_by_trip, to_text, trip_days
 
 
 def dish(id, servings, *ingredients):
@@ -100,7 +100,7 @@ def test_text_export_in_german():
                 ("Olivenöl", 1.5, "EL", "spices_sauces"), ("Eier", 3, "", "dairy")),
     }
     departments, _ = build_items([slot(1)], dishes, 1, exclude=[])
-    assert to_text(departments, date(2026, 11, 10)) == (
+    assert to_text(departments, "Einkaufsliste ab 10.11.2026") == (
         "Einkaufsliste ab 10.11.2026\n"
         "\n"
         "Obst & Gemüse\n"
@@ -113,3 +113,48 @@ def test_text_export_in_german():
         "Gewürze & Saucen\n"
         "- 1,5 EL Olivenöl"
     )
+
+
+def test_trip_days_cover_the_week_from_each_shopping_day():
+    assert trip_days(["mon"]) == {"mon": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]}
+    assert trip_days(["fri", "tue", "tue"]) == {  # days before the first trip belong to it
+        "tue": ["mon", "tue", "wed", "thu"],
+        "fri": ["fri", "sat", "sun"],
+    }
+    assert trip_days([]) == {"mon": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]}
+
+
+def test_leftovers_go_with_the_trip_of_their_cooking():
+    slots = [
+        Slot(day="thu", meal="dinner", kind="dish", dish_id=1, cook=False),  # leftover of wed
+        Slot(day="wed", meal="dinner", kind="dish", dish_id=1),
+        Slot(day="fri", meal="dinner", kind="dish", dish_id=2, cook=False),  # no cooking before it
+        Slot(day="thu", meal="snack", kind="fixed", dish_id=3),
+    ]
+    groups = split_by_trip(slots, ["mon", "thu"])
+    assert [(s.day, s.dish_id) for s in groups["mon"]] == [("wed", 1), ("thu", 1)]
+    assert [(s.day, s.dish_id) for s in groups["thu"]] == [("thu", 3), ("fri", 2)]
+
+
+def test_build_trips_splits_the_list_and_titles_each_trip():
+    dishes = {
+        1: dish(1, 1, ("Hähnchen", 200, "g", "meat_fish"), ("Salz", 1, "TL", "spices_sauces")),
+        2: dish(2, 1, ("Zwiebel", 0.5, "Stk", "produce"), ("Salz", 1, "TL", "spices_sauces")),
+    }
+    slots = [slot(1, day="mon"), slot(2, day="tue"), slot(2, day="thu"), slot(2, day="sat")]
+    trips, skipped = build_trips(slots, dishes, 1, ["salz"], ["mon", "thu"], date(2026, 11, 9))
+    assert [(t.day, t.shopping_date, t.days) for t in trips] == [
+        ("mon", date(2026, 11, 9), ["mon", "tue", "wed"]),
+        ("thu", date(2026, 11, 12), ["thu", "fri", "sat", "sun"]),
+    ]
+    assert amounts(trips[0].departments) == {"produce": [("Zwiebel", 1, "Stk")], "meat_fish": [("Hähnchen", 200, "g")]}
+    assert amounts(trips[1].departments) == {"produce": [("Zwiebel", 1, "Stk")]}  # rounded per trip
+    assert trips[1].text == "Einkauf am Donnerstag, 12.11.2026 (für Do–So)\n\nObst & Gemüse\n- 1 Stk Zwiebel"
+    assert skipped == ["Salz"]
+
+
+def test_build_trips_keeps_empty_trips_and_the_plain_title_for_one_trip():
+    trips, _ = build_trips([], {}, 1, [], ["sat"], date(2026, 11, 9))
+    assert trips[0].text == "Einkaufsliste ab 09.11.2026\n\nNichts zu kaufen."
+    trips, _ = build_trips([], {}, 1, [], ["mon", "sat"], date(2026, 11, 9))
+    assert trips[1].text == "Einkauf am Samstag, 14.11.2026 (für Sa–So)\n\nNichts zu kaufen."

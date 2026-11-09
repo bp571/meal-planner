@@ -520,6 +520,10 @@ button.slot-name:hover .ink { text-decoration: underline 1px var(--print); text-
 .copy { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem 0.75rem; margin-top: 1rem; }
 .copy .primary { padding: 0.625rem 1.5rem; font-size: 1.0625rem; }
 .copied { color: var(--pencil); font-size: 0.875rem; }
+/* Several trips: each one is its own tear-off part with a head and a copy button. */
+.trip-head { display: grid; gap: 0.125rem; padding-top: 0.75rem; }
+.trip-head h3 { font: 800 1.75rem/1.1 var(--form); color: var(--print); }
+.trip-head .copy { margin-top: 0.5rem; }
 
 .perforation {
   position: relative;
