@@ -26,7 +26,7 @@ are deterministic Python, so they can be tested without an API call.
   dishes.
 - **Sunday planning:** the agent asks about last week and the coming week, builds a plan, checks it
   against your profile and adjusts it in chat. One line per day with rough kcal, plus the weekly
-  total against your target.
+  total against your target. Click a dish in the plan to see its recipe card.
 - **Shopping list:** summed quantities grouped by supermarket department, without pantry staples,
   ready to copy into a note on your phone.
 - **Memory:** profile, learned preferences, ratings and past plans live in a local database. You

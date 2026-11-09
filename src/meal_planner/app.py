@@ -264,6 +264,13 @@ def get_dishes() -> list[dict]:
         ]
 
 
+@app.get("/api/dishes/{dish_id}")
+def get_dish(dish_id: int) -> dict:
+    """One dish with all ingredients, archived ones included (a plan can still show them)."""
+    with session_scope() as session:
+        return services.get_dish(session, dish_id).model_dump(mode="json")
+
+
 @app.delete("/api/dishes/{dish_id}")
 def delete_dish(dish_id: int) -> dict:
     with session_scope() as session:

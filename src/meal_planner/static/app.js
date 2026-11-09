@@ -274,13 +274,36 @@ function slotNode(slot) {
   const leftover = slot.kind === "dish" && !slot.cook;
   const cooks = slot.kind === "dish" && slot.cook && slot.covers.length > 0;
   const note = slotNote(slot);
+  const text = [leftover && el("span", { class: "ditto", "aria-hidden": "true" }, "″"), el("span", { class: "ink" }, slot.name)];
+  // Slots with a dish open its card; flex and unplanned slots are plain text.
+  const name = slot.dish_id == null
+    ? el("span", { class: "slot-name" }, text)
+    : el("button", { type: "button", class: "slot-name", "aria-haspopup": "dialog", onclick: () => openDish(slot.dish_id) }, text);
   return el(
     "div",
     { class: `slot kind-${slot.kind}${leftover ? " leftover" : ""}${cooks ? " cooks" : ""}` },
-    el("span", { class: "slot-name" }, leftover && el("span", { class: "ditto", "aria-hidden": "true" }, "″"), el("span", { class: "ink" }, slot.name)),
+    name,
     slot.kcal > 0 && el("span", { class: "slot-kcal" }, kcal(slot.kcal)),
     note && el("span", { class: "slot-note" }, note),
   );
+}
+
+const dishCard = $("#dish-card");
+
+/** Show a dish of the week as an index card, in the same layout as an import draft. */
+async function openDish(dishId) {
+  let content;
+  try {
+    const dish = await api(`/api/dishes/${dishId}`);
+    dishCard.setAttribute("aria-label", dish.name);
+    content = draftSummary({ dish });
+  } catch (error) {
+    dishCard.removeAttribute("aria-label");
+    content = note("error", error.message || T.errors.generic);
+  }
+  const close = el("form", { method: "dialog", class: "dish-card-close" }, el("button", { class: "quiet", "aria-label": T.week.closeDish }, "×"));
+  dishCard.replaceChildren(el("div", { class: "dish-card-body" }, close, content));
+  if (!dishCard.open) dishCard.showModal();
 }
 
 function weekSummary(check) {
@@ -946,6 +969,8 @@ async function init() {
   setupTabs();
   setupChat();
   setupImport();
+  // A click on the backdrop closes the card (the body covers the whole card itself).
+  dishCard.addEventListener("click", (event) => event.target === dishCard && dishCard.close());
   Object.values(views).forEach((load) => load());
   loadDrafts();
   api("/api/import/status")

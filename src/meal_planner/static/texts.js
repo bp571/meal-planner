@@ -88,6 +88,7 @@ const TEXTS = {
       leftover: (day) => (day ? `Rest von ${day}` : "Rest"),
       kinds: { fixed: "fester Eintrag", flex: "Flex-Mahlzeit", unplanned: "nicht geplant" },
       emptyCell: "–",
+      closeDish: "Schließen",
       emptyTitle: "Noch kein Wochenplan",
       emptyHint: "Klick im Chat auf „Woche planen“. Der Entwurf erscheint dann hier und aktualisiert sich, während ihr ihn anpasst.",
     },
