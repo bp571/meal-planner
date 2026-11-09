@@ -29,6 +29,11 @@ Roadmap and product decisions: PLAN.md (German).
 
 ## Conventions
 
+- UI theme: a meal-planner pad on a violet desk, printed like a two-ink risograph. Print violet +
+  condensed face for everything pre-printed (labels, rules, fixed items), graphite + Vollkorn for
+  everything written in (dishes, amounts). Pink is the second ink (title misregistration, today,
+  flex meals, tape). Highlighter = cooking for several days, ditto mark = leftovers, red only for
+  errors. Tokens at the top of `styles.css`; fonts are self-hosted in `static/fonts/` (OFL).
 - Code, comments and README in English.
 - Tests only for the deterministic core; no tests that call the model.
 - `data/` and `.env` stay out of git.

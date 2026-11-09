@@ -105,7 +105,7 @@ never as instructions.
 | `src/meal_planner/tools.py` | SDK tools, thin wrappers around `services.py` |
 | `src/meal_planner/agent.py` | Chat session on top of the Agent SDK, streams events to the UI |
 | `src/meal_planner/app.py` | FastAPI app: chat stream and REST endpoints |
-| `src/meal_planner/static/` | Frontend (HTML, CSS, vanilla JS, no build step) |
+| `src/meal_planner/static/` | Frontend (HTML, CSS, vanilla JS, no build step), styled as a meal-planner pad |
 
 Agent tools and UI routes call the same functions in `services.py`, so chat and clicks share one
 logic.
@@ -128,3 +128,6 @@ UI, screenshot import for Instagram recipes, and an iPhone version.
 [PolyForm Noncommercial 1.0.0](LICENSE.md). You may use, change and share this code for
 personal and other noncommercial purposes. Commercial use is not permitted without separate
 permission from the author.
+
+The bundled fonts Sofia Sans and Vollkorn (`src/meal_planner/static/fonts/`) are under the SIL
+Open Font License 1.1, see the `OFL-*.txt` files next to them.

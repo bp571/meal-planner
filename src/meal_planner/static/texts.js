@@ -75,11 +75,13 @@ const TEXTS = {
     },
 
     week: {
+      sheet: "Speiseplan",
       title: (kw) => `KW ${kw}`,
       from: (date) => `ab ${date}`,
       draft: "Entwurf",
       final: "Fest",
-      weekTotal: (kcal) => `${kcal} diese Woche`,
+      thisWeek: "diese Woche",
+      today: "Heute",
       ofTarget: (target) => `Ziel ${target}`,
       proteinTotal: (g, target) => (target ? `${g} g Protein von ${target} g` : `${g} g Protein`),
       cook: (days) => `kochen, reicht für ${days}`,
@@ -91,7 +93,8 @@ const TEXTS = {
     },
 
     shopping: {
-      title: (date) => `Einkaufsliste ab ${date}`,
+      title: "Einkaufsliste",
+      from: (date) => `ab ${date}`,
       copy: "Kopieren",
       copied: "Kopiert. Du kannst die Liste jetzt einfügen.",
       copyFailed: "Kopieren hat nicht geklappt. Markiere die Liste und kopiere sie von Hand.",

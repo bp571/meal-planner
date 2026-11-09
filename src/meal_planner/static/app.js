@@ -262,21 +262,26 @@ async function removeThen(path, viewId) {
 
 // Woche
 
-function slotBadge(slot) {
-  if (slot.kind !== "dish") return badge(T.week.kinds[slot.kind], slot.kind);
-  if (!slot.cook) return badge(T.week.leftover(T.days[slot.cooked_on]), "leftover");
-  if (slot.covers.length) return badge(T.week.cook(slot.covers.map((d) => T.days[d]).join(", ")), "cook");
+function slotNote(slot) {
+  if (slot.kind !== "dish") return T.week.kinds[slot.kind];
+  if (!slot.cook) return T.week.leftover(T.days[slot.cooked_on]);
+  if (slot.covers.length) return T.week.cook(slot.covers.map((d) => T.days[d]).join(", "));
   return null;
 }
 
-const slotNode = (slot) =>
-  el(
+// Like a paper pad: leftovers get a ditto mark, cooking for several days gets the highlighter.
+function slotNode(slot) {
+  const leftover = slot.kind === "dish" && !slot.cook;
+  const cooks = slot.kind === "dish" && slot.cook && slot.covers.length > 0;
+  const note = slotNote(slot);
+  return el(
     "div",
-    { class: `slot kind-${slot.kind}` },
-    el("span", { class: "slot-name" }, slot.name),
+    { class: `slot kind-${slot.kind}${leftover ? " leftover" : ""}${cooks ? " cooks" : ""}` },
+    el("span", { class: "slot-name" }, leftover && el("span", { class: "ditto", "aria-hidden": "true" }, "″"), el("span", { class: "ink" }, slot.name)),
     slot.kcal > 0 && el("span", { class: "slot-kcal" }, kcal(slot.kcal)),
-    slotBadge(slot),
+    note && el("span", { class: "slot-note" }, note),
   );
+}
 
 function weekSummary(check) {
   const ratio = check.week_kcal_target ? check.week_kcal / check.week_kcal_target : 0;
@@ -288,10 +293,11 @@ function weekSummary(check) {
     el(
       "p",
       { class: "summary-kcal" },
-      el("strong", {}, T.week.weekTotal(kcal(check.week_kcal))),
-      el("span", {}, T.week.ofTarget(kcal(check.week_kcal_target))),
+      el("strong", { class: "summary-number" }, kcal(check.week_kcal)),
+      el("span", {}, T.week.thisWeek),
+      el("span", { class: "summary-target" }, T.week.ofTarget(kcal(check.week_kcal_target))),
     ),
-    el("div", { class: "bar", "aria-hidden": "true" }, el("span", { style: `width: ${width}%` })),
+    el("div", { class: ratio > 1 ? "bar over" : "bar", "aria-hidden": "true" }, el("span", { style: `width: ${width}%` })),
     el("p", { class: "summary-protein" }, T.week.proteinTotal(grams(check.week_protein_g), check.week_protein_target_g && grams(check.week_protein_target_g))),
   );
 }
@@ -302,16 +308,22 @@ async function renderWeek() {
   const start = parseDay(plan.week_start);
   const meals = MEALS.filter((meal) => plan.slots.some((slot) => slot.meal === meal));
   const totals = Object.fromEntries(plan.check.days.map((day) => [day.day, day]));
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   const dayRow = (day, index) => {
     const total = totals[day];
+    const date = addDays(start, index);
+    const isToday = date.toISOString().slice(0, 10) === today;
+    const weekend = day === "sat" || day === "sun";
     return el(
       "section",
-      { class: "day" },
+      { class: `day${weekend ? " weekend" : ""}${isToday ? " today" : ""}` },
       el(
         "div",
         { class: "day-head" },
-        el("h3", {}, T.weekdays[day]),
-        el("span", { class: "day-date" }, shortDate(addDays(start, index))),
+        el("h3", {}, el("span", { class: "day-short", "aria-hidden": "true" }, T.days[day]), el("span", { class: "sr-only" }, T.weekdays[day])),
+        el("span", { class: "day-date" }, shortDate(date)),
+        isToday && el("span", { class: "today-tag" }, T.week.today),
         total && el("p", { class: "day-total" }, el("span", {}, kcal(total.kcal)), el("span", {}, T.protein(grams(total.protein_g)))),
       ),
       meals.map((meal) => {
@@ -328,8 +340,8 @@ async function renderWeek() {
   return [
     el(
       "header",
-      { class: "view-head" },
-      el("h2", {}, T.week.title(isoWeek(start))),
+      { class: "view-head sheet-head" },
+      el("h2", {}, el("span", { class: "preprint" }, T.week.sheet), " ", el("span", { class: "written" }, T.week.title(isoWeek(start)))),
       el("span", { class: "muted" }, T.week.from(shortDate(start))),
       badge(plan.status === "final" ? T.week.final : T.week.draft, plan.status),
     ),
@@ -363,10 +375,34 @@ async function renderShopping() {
   const [list, state] = await Promise.all([api("/api/shopping"), api("/api/state")]);
   if (!list) return empty(T.shopping.emptyTitle, T.shopping.emptyHint);
   const confirmation = el("span", { class: "copied", role: "status" });
+  const perforation = el("div", { class: "perforation", "aria-hidden": "true" });
+  const body = el(
+    "div",
+    { class: "strip-body" },
+    state.plan?.status === "draft" && el("p", { class: "hint" }, T.shopping.draftHint),
+    Object.entries(list.departments).map(([department, items]) =>
+      el(
+        "section",
+        { class: "department" },
+        el("h3", {}, T.departments[department] ?? department),
+        el("ul", {}, items.map((item) => el("li", {}, el("span", { class: "amount" }, amountText(item)), el("span", { class: "item" }, item.name)))),
+      ),
+    ),
+    list.skipped.length > 0 && el("p", { class: "hint" }, T.shopping.skipped(list.skipped.join(", "))),
+  );
+  // Copying tears the list off the pad: the tear runs along the perforation (see styles.css).
+  const tear = () => {
+    for (const node of [perforation, body]) {
+      node.classList.remove("torn");
+      void node.offsetWidth; // restart the animation on a second copy
+      node.classList.add("torn");
+    }
+  };
   const copy = async () => {
     try {
       await copyText(list.text);
       confirmation.textContent = T.shopping.copied;
+      tear();
     } catch {
       confirmation.textContent = T.shopping.copyFailed;
     }
@@ -374,24 +410,13 @@ async function renderShopping() {
   return [
     el(
       "header",
-      { class: "view-head" },
-      el("h2", {}, T.shopping.title(shortDate(parseDay(list.week_start)))),
+      { class: "strip-head" },
+      el("h2", {}, T.shopping.title),
+      el("p", { class: "muted" }, T.shopping.from(shortDate(parseDay(list.week_start)))),
       el("div", { class: "copy" }, el("button", { type: "button", class: "primary", onclick: copy }, T.shopping.copy), confirmation),
     ),
-    state.plan?.status === "draft" && el("p", { class: "hint" }, T.shopping.draftHint),
-    el(
-      "div",
-      { class: "departments" },
-      Object.entries(list.departments).map(([department, items]) =>
-        el(
-          "section",
-          { class: "department" },
-          el("h3", {}, T.departments[department] ?? department),
-          el("ul", {}, items.map((item) => el("li", {}, el("span", { class: "amount" }, amountText(item)), el("span", {}, item.name)))),
-        ),
-      ),
-    ),
-    list.skipped.length > 0 && el("p", { class: "hint" }, T.shopping.skipped(list.skipped.join(", "))),
+    perforation,
+    body,
   ];
 }
 

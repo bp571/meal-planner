@@ -23,7 +23,7 @@ dev = ["pytest", "httpx"]
 where = ["src"]
 
 [tool.setuptools.package-data]
-meal_planner = ["static/*"]
+meal_planner = ["static/*", "static/fonts/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
